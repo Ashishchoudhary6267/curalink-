@@ -1,0 +1,12 @@
+# Node/React
+node_modules/
+dist/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Environment Variables (Keep your API keys secret!)
+.env
+.env.local
