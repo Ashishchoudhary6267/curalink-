@@ -1,120 +1,140 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import axios from 'axios'
+import ReactMarkdown from 'react-markdown'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  // Medical Context State
+  const [patientName, setPatientName] = useState('')
+  const [disease, setDisease] = useState('')
+  const [location, setLocation] = useState('')
+
+  // Chat State
+  const [query, setQuery] = useState('')
+  const [chatHistory, setChatHistory] = useState([])
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault()
+    if (!query.trim() || !disease.trim()) {
+      alert("Please enter both a disease context and a query.")
+      return
+    }
+
+    // Add user message to UI immediately
+    const newChat = [...chatHistory, { role: 'user', content: query }]
+    setChatHistory(newChat)
+    setQuery('')
+    setIsLoading(true)
+
+    try {
+      // Send data to your Python AI microservice
+      const response = await axios.post('http://127.0.0.1:8000/api/research', {
+        query: query,
+        disease: disease,
+        location: location || null
+      })
+
+      // Add AI response to UI
+      setChatHistory([...newChat, {
+        role: 'assistant',
+        content: response.data.structured_response,
+        sources: response.data.sources_used
+      }])
+    } catch (error) {
+      console.error("API Error:", error)
+      setChatHistory([...newChat, {
+        role: 'assistant',
+        content: "Error: Could not connect to the Curalink AI Engine. Please check your backend."
+      }])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app-container">
+      {/* SIDEBAR: Medical Context */}
+      <aside className="sidebar">
+        <h2>Curalink Engine</h2>
+        <p className="subtitle">AI Medical Research Assistant</p>
+        
+        <div className="context-form">
+          <label>Patient Name</label>
+          <input 
+            type="text" 
+            placeholder="e.g., John Smith" 
+            value={patientName} 
+            onChange={(e) => setPatientName(e.target.value)} 
+          />
 
-      <div className="ticks"></div>
+          <label>Disease Context (Required) *</label>
+          <input 
+            type="text" 
+            placeholder="e.g., Parkinson's disease" 
+            value={disease} 
+            onChange={(e) => setDisease(e.target.value)} 
+          />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+          <label>Location (Optional)</label>
+          <input 
+            type="text" 
+            placeholder="e.g., Toronto, Canada" 
+            value={location} 
+            onChange={(e) => setLocation(e.target.value)} 
+          />
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      </aside>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {/* MAIN CHAT AREA */}
+      <main className="chat-area">
+        <div className="messages-container">
+          {chatHistory.length === 0 ? (
+            <div className="empty-state">
+              <h3>Welcome to Curalink</h3>
+              <p>Set the patient context on the left, then ask a medical question.</p>
+              <p><em>Example: "Latest treatment for lung cancer"</em></p>
+            </div>
+          ) : (
+            chatHistory.map((msg, index) => (
+              <div key={index} className={`message-wrapper ${msg.role}`}>
+                <div className="message-bubble">
+                  {msg.role === 'user' ? (
+                    <p>{msg.content}</p>
+                  ) : (
+                    <div className="assistant-content">
+                      {/* ReactMarkdown converts the LLM's ### into actual HTML headers */}
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+          {isLoading && (
+            <div className="message-wrapper assistant">
+              <div className="message-bubble loading">
+                Curalink is researching APIs... (This takes 10-15 seconds)
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* INPUT BAR */}
+        <form className="input-form" onSubmit={handleSendMessage}>
+          <input 
+            type="text" 
+            placeholder="Ask about treatments, side effects, or clinical trials..." 
+            value={query} 
+            onChange={(e) => setQuery(e.target.value)}
+            disabled={isLoading}
+          />
+          <button type="submit" disabled={isLoading || !query.trim()}>
+            {isLoading ? 'Researching...' : 'Send'}
+          </button>
+        </form>
+      </main>
+    </div>
   )
 }
 
