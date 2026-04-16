@@ -22,7 +22,7 @@ function InputArea({ context, chatHistory, setChatHistory, setIsLoading, isLoadi
       // Log the data to your browser console so you can see what is being sent
       console.log("Sending to Backend:", { query, disease: context.disease });
 
-      const response = await axios.post('http://127.0.0.1:8000/api/research', {
+      const response = await axios.post('https://curalink-kg7p.onrender.com/api/research', {
         query: query.trim(),
         disease: context.disease.trim(), 
         location: context.location ? context.location.trim() : null
