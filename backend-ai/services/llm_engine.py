@@ -12,7 +12,6 @@ def generate_medical_response(query: str, disease: str, ranked_context: list) ->
     """
     Fulfills Core Expectation: Reliable, Fast Cloud AI Response.
     """
-    
     context_text = ""
     for idx, item in enumerate(ranked_context):
         context_text += f"\n[{idx + 1}] Source: {item.get('source')}\n"

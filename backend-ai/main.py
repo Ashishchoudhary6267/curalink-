@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 import concurrent.futures
 from dotenv import load_dotenv
@@ -15,6 +15,8 @@ from services.clinical_trials import fetch_clinical_trials
 from services.pubmed import fetch_pubmed_articles
 from services.openalex import fetch_openalex_works
 from services.llm_engine import generate_medical_response
+from services.database import get_users_collection
+from services.auth import hash_password, verify_password, create_access_token, verify_token
 
 app = FastAPI()
 
@@ -31,6 +33,21 @@ class QueryRequest(BaseModel):
     query: str
     disease: str
     location: str = None
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    confirmPassword: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class AuthResponse(BaseModel):
+    success: bool
+    error: str = None
+    token: str = None
+    user: dict = None
 
 def score_and_rank_results(results, query, disease):
     """
@@ -76,6 +93,91 @@ def score_and_rank_results(results, query, disease):
     
     # Return ONLY the top 8 as strictly requested by the assignment
     return scored_results[:8]
+
+# ============ AUTHENTICATION ENDPOINTS ============
+
+@app.post("/api/signup", response_model=AuthResponse)
+def signup(request: SignupRequest):
+    """User signup endpoint"""
+    try:
+        # Validate input
+        if not request.email or not request.password:
+            return AuthResponse(success=False, error="Email and password are required")
+        
+        if len(request.password) < 6:
+            return AuthResponse(success=False, error="Password must be at least 6 characters")
+        
+        if request.password != request.confirmPassword:
+            return AuthResponse(success=False, error="Passwords do not match")
+        
+        # Check if user already exists
+        users_collection = get_users_collection()
+        existing_user = users_collection.find_one({"email": request.email})
+        
+        if existing_user:
+            return AuthResponse(success=False, error="User already exists with this email")
+        
+        # Hash password and create user
+        hashed_password = hash_password(request.password)
+        
+        user_doc = {
+            "email": request.email,
+            "password": hashed_password,
+            "created_at": datetime.utcnow()
+        }
+        
+        result = users_collection.insert_one(user_doc)
+        user_id = str(result.inserted_id)
+        
+        # Create token
+        token = create_access_token(user_id, request.email)
+        
+        return AuthResponse(
+            success=True,
+            token=token,
+            user={
+                "id": user_id,
+                "email": request.email,
+                "name": request.email.split('@')[0]
+            }
+        )
+    except Exception as e:
+        print(f"Signup error: {e}")
+        return AuthResponse(success=False, error="Signup failed")
+
+@app.post("/api/login", response_model=AuthResponse)
+def login(request: LoginRequest):
+    """User login endpoint"""
+    try:
+        # Find user by email
+        users_collection = get_users_collection()
+        user = users_collection.find_one({"email": request.email})
+        
+        if not user:
+            return AuthResponse(success=False, error="Invalid email or password")
+        
+        # Verify password
+        if not verify_password(request.password, user.get("password", "")):
+            return AuthResponse(success=False, error="Invalid email or password")
+        
+        # Create token
+        user_id = str(user["_id"])
+        token = create_access_token(user_id, user["email"])
+        
+        return AuthResponse(
+            success=True,
+            token=token,
+            user={
+                "id": user_id,
+                "email": user["email"],
+                "name": user["email"].split('@')[0]
+            }
+        )
+    except Exception as e:
+        print(f"Login error: {e}")
+        return AuthResponse(success=False, error="Login failed")
+
+
 
 @app.post("/api/research")
 def process_medical_query(request: QueryRequest):
