@@ -73,7 +73,7 @@ function InputArea({
     try {
       const apiBase = useRemote
         ? 'https://curalink-kg7p.onrender.com'
-        : 'http://localhost:8000';
+        : (import.meta.env.VITE_API_BASE || 'http://localhost:8000');
       const endpoint = `${apiBase}/api/research`;
 
       console.log(`Sending query to ${endpoint}:`, {
